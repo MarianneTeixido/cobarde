@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>COBARDE</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/hydra-synth@1.3.29/dist/hydra-synth.js"></script>
+<script>
+  const canvas = document.createElement('canvas')
+  document.body.appendChild(canvas)
+  const hydra = new Hydra({ canvas, detectAudio: false, makeGlobal: true, enableStreamCapture: false })
+  // stub de audio (el sketch usa mic = false)
+  window.a = { show() {}, hide() {}, setBins() {}, setSmooth() {}, fft: [0, 0, 0, 0] }
+</script>
+<script>
+mic = false
+if (mic) { a.show(); a.setBins(4); a.setSmooth(0.85) } else { a.hide() }
+lvl = () => mic ? a.fft[0] : 0.25 + 0.2 * Math.sin(time * 0.37) * Math.sin(time * 1.3)
+mx = () => (mouse.x / innerWidth) || 0.5
+my = () => (mouse.y / innerHeight) || 0.5
+
+// ---- texto responsivo ----
+dpr = Math.min(devicePixelRatio || 1, 2)
+mkc = () => document.createElement('canvas')
+T = mkc(); HL = mkc()
+BASE = [
+  'error 404',                              // 0 encabezado chico
+  'COBARDE',                                // 1 grande
+  'LOVE',                                   // 2 grande
+  'not FOUND',                              // 3 grande (FOUND tachado)
+  '404 love not found',                     // 4 vertical
+  'error 404 - love not found',             // 5 pie
+  'please move back to 80s and try again.'  // 6 pie
+]
+big = s => '500 ' + s + 'px sans-serif'
+mono = s => s + 'px monospace'
+
+layout = () => {
+  W = Math.round(innerWidth * dpr); H = Math.round(innerHeight * dpr)
+  T.width = HL.width = W; T.height = HL.height = H
+  let c = T.getContext('2d')
+  let mn = Math.min(W, H), m = mn * 0.06, fs = Math.max(10 * dpr, mn * 0.032)
+  let uw = W - 2 * m - fs * 3.2
+  let fit = (f, s, mw, cap) => { c.font = f(100); return Math.min(100 * mw / c.measureText(s).width, cap) }
+
+  // pie: 3 renglones (2 fijos + prompt)
+  let sB = Math.min(fs, fit(mono, BASE[6], uw, 1e4))
+  let yb = H - m - sB * 3.4
+
+  // encabezado chico
+  let sS = Math.min(fs * 1.3, fit(mono, BASE[0], uw * 0.5, 1e4))
+
+  // los tres renglones grandes comparten tamaño (manda el más ancho)
+  let sz = Math.min(fit(big, BASE[1], uw, 1e4), fit(big, BASE[3], uw, 1e4), H * 0.16)
+  let top = m, room = yb - sB * 1.5 - top
+  let head = sS * 1.6
+  if (head + sz * 0.82 * 3 > room) sz = (room - head) / (0.82 * 3)
+  let lh = sz * 0.82
+  let y = top + (room - (head + lh * 3)) / 2
+  let y0 = y + sS, y1 = y0 + sS * 0.6 + lh, y2 = y1 + lh, y3 = y2 + lh
+
+  c.font = big(sz)
+  L = {
+    m, fs, sS, sz, sB, y0, y1, y2, y3, yb,
+    xF: c.measureText('not ').width, wF: c.measureText('FOUND').width
+  }
+}
+layout()
+
+G = '█▓▒░#@%&/\\<>_|'
+amt = 0; t0 = performance.now()
+cor = s => s.split('').map(ch => ch !== ' ' && Math.random() < amt
+  ? G[Math.floor(Math.random() * G.length)] : ch).join('')
+
+draw = (cnv, halo, S) => {
+  let c = cnv.getContext('2d'), { m, fs, sS, sz, sB, y0, y1, y2, y3, yb, xF, wF } = L
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H)
+  c.fillStyle = '#fff'; c.strokeStyle = '#fff'; c.lineJoin = 'round'; c.lineWidth = fs * 0.9
+  let tx = (f, s, x, yy) => { c.font = f; if (halo) c.strokeText(s, x, yy); c.fillText(s, x, yy) }
+
+  tx(mono(sS), S[0], m + sS * 0.3, y0)
+  tx(big(sz), S[1], m * 0.7, y1)
+  tx(big(sz), S[2], m * 0.7, y2)
+  tx(big(sz), S[3], m * 0.7, y3)
+
+  // tachón sobre FOUND
+  c.fillRect(m * 0.7 + xF, y3 - sz * 0.36, wF * (0.92 + 0.12 * Math.sin(time * 3)),
+    halo ? sz * 0.12 : sz * 0.05)
+
+  // vertical a la derecha
+  c.save(); c.translate(W - m * 0.35, H - m); c.rotate(-Math.PI / 2)
+  c.font = mono(fs * 0.9)
+  let reps = Math.ceil(H / c.measureText(S[4] + '   ').width) + 1
+  tx(mono(fs * 0.9), (S[4] + '   ').repeat(reps), 0, 0)
+  c.restore()
+
+  // pie
+  tx(mono(sB), S[5], m, yb)
+  tx(mono(sB), S[6], m, yb + sB * 1.7)
+  tx(mono(sB), S[7], m, yb + sB * 3.4)
+}
+
+tick = () => {
+  amt = Math.random() < 0.15 ? 0.25 : Math.random() < 0.3 ? 0.04 : 0
+  let el = (performance.now() - t0) / 1000
+  let q = 'do you want to proceed? [y/n]'
+  let n = Math.min(q.length, Math.floor((el % 9) * 7))
+  let S = BASE.concat('> ' + q.slice(0, n) + (Math.floor(el * 2) % 2 ? '_' : ' ')).map(cor)
+  draw(T, false, S); draw(HL, true, S)
+}
+tick(); clearInterval(window._ti); window._ti = setInterval(tick, 110)
+window.onresize = () => { layout(); setResolution(W, H); tick() }
+setResolution(W, H)
+s0.init({ src: T, dynamic: true })
+s1.init({ src: HL, dynamic: true })
+
+tk = a => () => Math.random() < 0.07 ? a * (Math.random() - 0.5) : 0
+
+// ---- o0: rejilla de franjas que se come a o1 (y al texto) por diferencia ----
+osc(18, 0.1, 0).color(1.6, 0.1, 2)
+  .mult(osc(20, 0.01, 0))
+  .repeat(2, 20)
+  .rotate(() => 0.5 + (mx() - 0.5) * 0.6)
+  .modulate(o1, () => 0.7 + lvl() * 0.6)
+  .scale(1, () => 1.6 + lvl() * 0.9 + my() * 0.8)
+  .diff(o1)
+  .diff(src(s0).modulate(o1, 0.02))
+  .out(o0)
+
+// ---- o1: franjas finas azul/magenta que giran con o0 ----
+osc(20, 0.2, 0).color(0.35, 0.15, 2)
+  .mult(osc(40, 0.02).color(1, 0.3, 1.4))
+  .modulateRotate(o0, () => 0.2 + (mx() - 0.5) * 0.3)
+  .rotate(0.2)
+  .out(o1)
+
+// ---- post: paleta + tearing ----
+src(o0)
+  .color(0.8, 0.42, 1.1)
+  .saturate(1.15)
+  .contrast(1.25)
+  .modulateScrollX(noise(2, 0.6).scale(1, 80, 1).thresh(0.75), () => Math.random() < 0.15 ? 0.12 : 0.02)
+  .out(o2)
+
+// ---- split RGB + texto legible encima ----
+src(o2).color(1, 0, 0.15)
+  .add(src(o2).scrollX(() => 0.006 + (Math.random() < 0.08 ? 0.04 : 0)).color(0, 0, 1))
+  .add(src(o2).scrollX(-0.004).color(0, 0.45, 0))
+  .mult(src(s1).scrollX(tk(0.03)).invert().add(solid(0.1, 0.06, 0.18)))
+  .add(src(s0).scrollX(() => -0.005 + tk(0.05)()).color(1, 0.1, 0.75), 0.9)
+  .add(src(s0).scrollX(() => 0.005 + tk(0.05)()).color(0.1, 0.9, 1), 0.9)
+  .add(src(s0).scrollX(tk(0.02)).color(0.6, 0.6, 0.6))
+  .modulateScrollX(noise(4, 0.7).scale(1, 120, 1).thresh(0.88), 0.04)
+  .mult(osc(600, 0).rotate(Math.PI / 2).color(0.3, 0.3, 0.3).add(solid(0.7, 0.7, 0.7)))
+  .out(o3)
+
+render(o3)
+</script>
+</body>
+</html>
