@@ -17,6 +17,8 @@
   #panel .sl { display: flex; gap: 6px; align-items: center; }
   #panel .sl input[type=range] { padding: 0; }
   #panel .sl input[type=number] { width: 64px; flex: none; }
+  #panel .modes { display: flex; gap: 6px; }
+  #panel .modes button.on { background: #fff; color: #000; }
   #panel .row { display: flex; gap: 6px; margin-top: 10px; }
 </style>
 </head>
@@ -43,7 +45,35 @@ my = () => (mouse.y / innerHeight) || 0.5
 // ---- texto responsivo ----
 dpr = Math.min(devicePixelRatio || 1, 2)
 mkc = () => document.createElement('canvas')
-T = mkc(); HL = mkc()
+T = mkc(); HL = mkc(); P = mkc(); pc = P.getContext('2d')
+mode = 3   // 0 ninguno · 1 desgarro · 2 vórtice · 3 borrar realidad
+
+// ---- puntero ----
+px = 0.5; py = 0.5; vel = 0; down = false; lx = null; ly = null
+paint = () => {
+  let r = P.width * (0.06 + vel * 0.18)
+  let g = pc.createRadialGradient(px * P.width, py * P.height, 0, px * P.width, py * P.height, r)
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)')
+  pc.fillStyle = g; pc.fillRect(px * P.width - r, py * P.height - r, r * 2, r * 2)
+}
+inUI = e => e.target.closest && e.target.closest('#ui')
+window.onpointerdown = e => {
+  if (inUI(e)) return
+  down = true; px = e.clientX / innerWidth; py = e.clientY / innerHeight; lx = px; ly = py
+  if (mode === 3) paint()
+}
+window.onpointermove = e => {
+  if (inUI(e)) return
+  let x = e.clientX / innerWidth, y = e.clientY / innerHeight
+  if (lx !== null) vel = Math.min(1, vel * 0.6 + Math.hypot(x - lx, y - ly) * 4)
+  px = x; py = y; lx = x; ly = y
+  if (mode === 3 && (down || e.pointerType === 'mouse')) paint()
+}
+window.onpointerup = () => { down = false }
+window.onpointercancel = () => { down = false; lx = null }
+cancelAnimationFrame(window._raf)
+decay = () => { vel *= 0.93; window._raf = requestAnimationFrame(decay) }
+decay()
 DEFQ = 'do you still love me?'
 DEF = [
   'error 404',                              // 0 encabezado chico
@@ -63,6 +93,7 @@ mono = s => s + 'px monospace'
 layout = () => {
   W = Math.round(innerWidth * dpr); H = Math.round(innerHeight * dpr)
   T.width = HL.width = W; T.height = HL.height = H
+  P.width = Math.round(W / 3); P.height = Math.round(H / 3)
   let c = T.getContext('2d')
   let mn = Math.min(W, H), m = mn * 0.06, fs = Math.max(10 * dpr, mn * 0.032)
   let uw = W - 2 * m - fs * 3.2
@@ -127,17 +158,20 @@ draw = (cnv, halo, S) => {
 
 tick = () => {
   amt = Math.random() < 0.15 ? 0.25 : Math.random() < 0.3 ? 0.04 : 0
+  amt = Math.max(amt, Math.min(0.55, vel * 0.9))
   let el = (performance.now() - t0) / 1000
   let q = Q
   let n = Math.min(q.length, Math.floor((el % 9) * 7))
   let S = BASE.concat('> ' + q.slice(0, n) + (Math.floor(el * 2) % 2 ? '_' : ' ')).map(cor)
   draw(T, false, S); draw(HL, true, S)
+  pc.fillStyle = 'rgba(0,0,0,0.07)'; pc.fillRect(0, 0, P.width, P.height)
 }
 tick(); clearInterval(window._ti); window._ti = setInterval(tick, 110)
 window.onresize = () => { layout(); setResolution(W, H); tick() }
 setResolution(W, H)
 s0.init({ src: T, dynamic: true })
 s1.init({ src: HL, dynamic: true })
+s2.init({ src: P, dynamic: true })
 
 // ---- interfaz de texto ----
 LABELS = ['encabezado chico', 'renglón 1 (grande)', 'renglón 2 (grande)', 'renglón 3 (grande, la segunda palabra va tachada)',
@@ -148,6 +182,7 @@ setVals = v => { BASE = v.slice(0, 7); Q = v[7] }
 ;(() => {
   let p = new URLSearchParams(location.search), v = getVals(), any = false
   v.forEach((_, i) => { if (p.has('t' + i)) { v[i] = p.get('t' + i); any = true } })
+  if (p.has('m')) mode = Math.max(0, Math.min(3, +p.get('m') || 0))
   if (p.has('d')) SPLIT = +p.get('d') || 0
   if (p.has('j')) JIT = +p.get('j') || 0
   if (any) { setVals(v); layout(); tick() }
@@ -155,12 +190,25 @@ setVals = v => { BASE = v.slice(0, 7); Q = v[7] }
 saveURL = () => {
   let p = new URLSearchParams(), v = getVals()
   v.forEach((x, i) => { if (x !== (i < 7 ? DEF[i] : DEFQ)) p.set('t' + i, x) })
+  if (mode !== 3) p.set('m', mode)
   if (SPLIT !== 1) p.set('d', SPLIT)
   if (JIT !== 1) p.set('j', JIT)
   let qs = p.toString()
   history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''))
 }
 panel = document.getElementById('panel')
+ml = document.createElement('label'); ml.textContent = 'modo (teclas 0-3): 1 desgarro · 2 vórtice · 3 borrar realidad'
+mrow = document.createElement('div'); mrow.className = 'modes'
+modeBtns = [0, 1, 2, 3].map(k => {
+  let b = document.createElement('button'); b.textContent = k === 0 ? 'ninguno' : k
+  b.onclick = () => setMode(k); mrow.append(b); return b
+})
+setMode = k => { mode = k; modeBtns.forEach((b, i) => b.classList.toggle('on', i === k)); saveURL() }
+panel.append(ml, mrow)
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return
+  if ('0123'.includes(e.key) && e.key.length === 1) setMode(+e.key)
+})
 inputs = LABELS.map((lb, i) => {
   let l = document.createElement('label'); l.textContent = lb
   let inp = document.createElement('input'); inp.value = getVals()[i]; inp.spellcheck = false
@@ -184,10 +232,12 @@ row = document.createElement('div'); row.className = 'row'
 bCopy = document.createElement('button'); bCopy.textContent = 'copiar link'
 bCopy.onclick = () => { navigator.clipboard.writeText(location.href); bCopy.textContent = '¡copiado!'; setTimeout(() => bCopy.textContent = 'copiar link', 1200) }
 bReset = document.createElement('button'); bReset.textContent = 'restaurar'
-bReset.onclick = () => { setVals(DEF.concat(DEFQ)); inputs.forEach((x, i) => x.value = getVals()[i]); SPLIT = JIT = 1; syncD(1); syncJ(1); layout(); tick(); saveURL() }
+bReset.onclick = () => { setVals(DEF.concat(DEFQ)); inputs.forEach((x, i) => x.value = getVals()[i]); SPLIT = JIT = 1; setMode(3); syncD(1); syncJ(1); layout(); tick(); saveURL() }
 row.append(bCopy, bReset); panel.append(row)
+setMode(mode)
 document.getElementById('tg').onclick = () => panel.classList.toggle('open')
 
+kx = () => mode === 1 ? 0.4 + px * 2.4 : 1
 tk = a => () => Math.random() < 0.07 ? JIT * a * (Math.random() - 0.5) : 0
 
 // ---- o0: rejilla de franjas que se come a o1 (y al texto) por diferencia ----
@@ -199,6 +249,13 @@ osc(18, 0.1, 0).color(1.6, 0.1, 2)
   .scale(1, () => 1.6 + lvl() * 0.9 + my() * 0.8)
   .diff(o1)
   .diff(src(s0).modulate(o1, 0.02))
+  // 1 · desgarro
+  .modulateScrollX(
+    shape(4, 0.14, 0.08).scale(1, 12, 1).scrollY(() => py - 0.5)
+      .mult(noise(3, 1.2).scale(1, 50, 1)),
+    () => mode === 1 ? 0.04 + vel * 0.6 : 0)
+  // 3 · borrar realidad
+  .modulate(src(s2).modulate(noise(3, 0.4), 0.1), () => mode === 3 ? 0.14 : 0)
   .out(o0)
 
 // ---- o1: franjas finas azul/magenta que giran con o0 ----
@@ -206,6 +263,13 @@ osc(20, 0.2, 0).color(0.35, 0.15, 2)
   .mult(osc(40, 0.02).color(1, 0.3, 1.4))
   .modulateRotate(o0, () => 0.2 + (mx() - 0.5) * 0.3)
   .rotate(0.2)
+  // 2 · vórtice
+  .scale(
+    () => mode === 2 ? 1 + (down ? 0.05 : 0.012) + vel * 0.08 : 1,
+    1, 1,
+    () => mode === 2 ? px : 0.5,
+    () => mode === 2 ? 1 - py : 0.5)
+  .rotate(() => mode === 2 ? (px - 0.5) * 0.05 : 0)
   .out(o1)
 
 // ---- post: paleta + tearing ----
@@ -218,13 +282,19 @@ src(o0)
 
 // ---- split RGB + texto legible encima ----
 src(o2).color(1, 0, 0.15)
-  .add(src(o2).scrollX(() => 0.006 + (Math.random() < 0.08 ? 0.04 : 0)).color(0, 0, 1))
-  .add(src(o2).scrollX(-0.004).color(0, 0.45, 0))
+  .add(src(o2).scrollX(() => (0.006 + (Math.random() < 0.08 ? 0.04 : 0)) * kx()).color(0, 0, 1))
+  .add(src(o2).scrollX(() => -0.004 * kx()).color(0, 0.45, 0))
   .mult(src(s1).scrollX(tk(0.03)).invert().add(solid(0.1, 0.06, 0.18)))
   .add(src(s0).scrollX(() => -0.005 * SPLIT + tk(0.05)()).color(1, 0.1, 0.75), 0.9)
   .add(src(s0).scrollX(() => 0.005 * SPLIT + tk(0.05)()).color(0.1, 0.9, 1), 0.9)
   .add(src(s0).scrollX(tk(0.02)).color(0.6, 0.6, 0.6))
   .modulateScrollX(noise(4, 0.7).scale(1, 120, 1).thresh(0.88), 0.04)
+  .pixelate(() => Math.random() < 0.04 + vel * 0.2 ? 48 : 4000,
+    () => Math.random() < 0.04 + vel * 0.2 ? 140 : 4000)
+  // 3 · borrar realidad (huella del puntero)
+  .add(src(s2).modulate(noise(4, 0.6), 0.05).color(0.1, 1, 0.85)
+    .mult(osc(40, 0.2).rotate(Math.PI / 2).add(solid(0.3, 0.3, 0.3))),
+    () => mode === 3 ? 0.8 : 0)
   .mult(osc(600, 0).rotate(Math.PI / 2).color(0.3, 0.3, 0.3).add(solid(0.7, 0.7, 0.7)))
   .out(o3)
 
