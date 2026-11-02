@@ -14,6 +14,9 @@
   #panel.open { display: block; }
   #panel label { display: block; margin: 8px 0 2px; opacity: .7; }
   #panel input { width: 100%; box-sizing: border-box; background: #000; color: #fff; border: 1px solid #888; padding: 4px; font: inherit; }
+  #panel .sl { display: flex; gap: 6px; align-items: center; }
+  #panel .sl input[type=range] { padding: 0; }
+  #panel .sl input[type=number] { width: 64px; flex: none; }
   #panel .row { display: flex; gap: 6px; margin-top: 10px; }
 </style>
 </head>
@@ -52,6 +55,7 @@ DEF = [
 ]
 BASE = DEF.slice()
 Q = 'do you want to proceed? [y/n]'
+SPLIT = 1; JIT = 1   // desfase RGB del texto y temblor
 big = s => '500 ' + s + 'px sans-serif'
 mono = s => s + 'px monospace'
 
@@ -143,11 +147,15 @@ setVals = v => { BASE = v.slice(0, 7); Q = v[7] }
 ;(() => {
   let p = new URLSearchParams(location.search), v = getVals(), any = false
   v.forEach((_, i) => { if (p.has('t' + i)) { v[i] = p.get('t' + i); any = true } })
+  if (p.has('d')) SPLIT = +p.get('d') || 0
+  if (p.has('j')) JIT = +p.get('j') || 0
   if (any) { setVals(v); layout(); tick() }
 })()
 saveURL = () => {
   let p = new URLSearchParams(), v = getVals()
   v.forEach((x, i) => { if (x !== (i < 7 ? DEF[i] : 'do you want to proceed? [y/n]')) p.set('t' + i, x) })
+  if (SPLIT !== 1) p.set('d', SPLIT)
+  if (JIT !== 1) p.set('j', JIT)
   let qs = p.toString()
   history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''))
 }
@@ -158,15 +166,28 @@ inputs = LABELS.map((lb, i) => {
   inp.oninput = () => { let v = getVals(); v[i] = inp.value; setVals(v); layout(); tick(); saveURL() }
   panel.append(l, inp); return inp
 })
+mkSlider = (lb, get, set, max) => {
+  let l = document.createElement('label'); l.textContent = lb
+  let w = document.createElement('div'); w.className = 'sl'
+  let r = document.createElement('input'); r.type = 'range'; r.min = 0; r.max = max; r.step = 0.05
+  let n = document.createElement('input'); n.type = 'number'; n.min = 0; n.max = max; n.step = 0.05
+  r.value = n.value = get()
+  let f = v => { v = Math.max(0, Math.min(max, +v || 0)); set(v); r.value = n.value = v; saveURL() }
+  r.oninput = () => f(r.value); n.oninput = () => f(n.value)
+  w.append(r, n); panel.append(l, w)
+  return v => { r.value = n.value = v }
+}
+syncD = mkSlider('desfase del texto (0 = nada, 1 = original)', () => SPLIT, v => SPLIT = v, 6)
+syncJ = mkSlider('temblor del texto (0 = quieto, 1 = original)', () => JIT, v => JIT = v, 6)
 row = document.createElement('div'); row.className = 'row'
 bCopy = document.createElement('button'); bCopy.textContent = 'copiar link'
 bCopy.onclick = () => { navigator.clipboard.writeText(location.href); bCopy.textContent = '¡copiado!'; setTimeout(() => bCopy.textContent = 'copiar link', 1200) }
 bReset = document.createElement('button'); bReset.textContent = 'restaurar'
-bReset.onclick = () => { setVals(DEF.concat('do you want to proceed? [y/n]')); inputs.forEach((x, i) => x.value = getVals()[i]); layout(); tick(); saveURL() }
+bReset.onclick = () => { setVals(DEF.concat('do you want to proceed? [y/n]')); inputs.forEach((x, i) => x.value = getVals()[i]); SPLIT = JIT = 1; syncD(1); syncJ(1); layout(); tick(); saveURL() }
 row.append(bCopy, bReset); panel.append(row)
 document.getElementById('tg').onclick = () => panel.classList.toggle('open')
 
-tk = a => () => Math.random() < 0.07 ? a * (Math.random() - 0.5) : 0
+tk = a => () => Math.random() < 0.07 ? JIT * a * (Math.random() - 0.5) : 0
 
 // ---- o0: rejilla de franjas que se come a o1 (y al texto) por diferencia ----
 osc(18, 0.1, 0).color(1.6, 0.1, 2)
@@ -199,8 +220,8 @@ src(o2).color(1, 0, 0.15)
   .add(src(o2).scrollX(() => 0.006 + (Math.random() < 0.08 ? 0.04 : 0)).color(0, 0, 1))
   .add(src(o2).scrollX(-0.004).color(0, 0.45, 0))
   .mult(src(s1).scrollX(tk(0.03)).invert().add(solid(0.1, 0.06, 0.18)))
-  .add(src(s0).scrollX(() => -0.005 + tk(0.05)()).color(1, 0.1, 0.75), 0.9)
-  .add(src(s0).scrollX(() => 0.005 + tk(0.05)()).color(0.1, 0.9, 1), 0.9)
+  .add(src(s0).scrollX(() => -0.005 * SPLIT + tk(0.05)()).color(1, 0.1, 0.75), 0.9)
+  .add(src(s0).scrollX(() => 0.005 * SPLIT + tk(0.05)()).color(0.1, 0.9, 1), 0.9)
   .add(src(s0).scrollX(tk(0.02)).color(0.6, 0.6, 0.6))
   .modulateScrollX(noise(4, 0.7).scale(1, 120, 1).thresh(0.88), 0.04)
   .mult(osc(600, 0).rotate(Math.PI / 2).color(0.3, 0.3, 0.3).add(solid(0.7, 0.7, 0.7)))
