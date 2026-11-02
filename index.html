@@ -44,6 +44,7 @@ my = () => (mouse.y / innerHeight) || 0.5
 dpr = Math.min(devicePixelRatio || 1, 2)
 mkc = () => document.createElement('canvas')
 T = mkc(); HL = mkc()
+DEFQ = 'do you still love me?'
 DEF = [
   'error 404',                              // 0 encabezado chico
   'COBARDE',                                // 1 grande
@@ -54,7 +55,7 @@ DEF = [
   'please come back to me, and love me again.'// 6 pie
 ]
 BASE = DEF.slice()
-Q = 'do you want to proceed? [y/n]'
+Q = DEFQ
 SPLIT = 1; JIT = 1   // desfase RGB del texto y temblor
 big = s => '500 ' + s + 'px sans-serif'
 mono = s => s + 'px monospace'
@@ -153,7 +154,7 @@ setVals = v => { BASE = v.slice(0, 7); Q = v[7] }
 })()
 saveURL = () => {
   let p = new URLSearchParams(), v = getVals()
-  v.forEach((x, i) => { if (x !== (i < 7 ? DEF[i] : 'do you want to proceed? [y/n]')) p.set('t' + i, x) })
+  v.forEach((x, i) => { if (x !== (i < 7 ? DEF[i] : DEFQ)) p.set('t' + i, x) })
   if (SPLIT !== 1) p.set('d', SPLIT)
   if (JIT !== 1) p.set('j', JIT)
   let qs = p.toString()
@@ -183,7 +184,7 @@ row = document.createElement('div'); row.className = 'row'
 bCopy = document.createElement('button'); bCopy.textContent = 'copiar link'
 bCopy.onclick = () => { navigator.clipboard.writeText(location.href); bCopy.textContent = '¡copiado!'; setTimeout(() => bCopy.textContent = 'copiar link', 1200) }
 bReset = document.createElement('button'); bReset.textContent = 'restaurar'
-bReset.onclick = () => { setVals(DEF.concat('do you want to proceed? [y/n]')); inputs.forEach((x, i) => x.value = getVals()[i]); SPLIT = JIT = 1; syncD(1); syncJ(1); layout(); tick(); saveURL() }
+bReset.onclick = () => { setVals(DEF.concat(DEFQ)); inputs.forEach((x, i) => x.value = getVals()[i]); SPLIT = JIT = 1; syncD(1); syncJ(1); layout(); tick(); saveURL() }
 row.append(bCopy, bReset); panel.append(row)
 document.getElementById('tg').onclick = () => panel.classList.toggle('open')
 
