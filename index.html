@@ -48,6 +48,7 @@ my = () => (mouse.y / innerHeight) || 0.5
 dpr = Math.min(devicePixelRatio || 1, 2)
 mkc = () => document.createElement('canvas')
 T = mkc(); HL = mkc(); P = mkc(); pc = P.getContext('2d')
+FW = 0; FH = 0   // tamaño fijo (px) durante la exportación
 mode = 3   // 0 ninguno · 1 desgarro · 2 vórtice · 3 borrar realidad
 
 // ---- puntero ----
@@ -93,7 +94,7 @@ big = s => '500 ' + s + 'px sans-serif'
 mono = s => s + 'px monospace'
 
 layout = () => {
-  W = Math.round(innerWidth * dpr); H = Math.round(innerHeight * dpr)
+  W = FW || Math.round(innerWidth * dpr); H = FH || Math.round(innerHeight * dpr)
   T.width = HL.width = W; T.height = HL.height = H
   P.width = Math.round(W / 3); P.height = Math.round(H / 3)
   let c = T.getContext('2d')
@@ -184,7 +185,7 @@ setVals = v => { BASE = v.slice(0, 7); Q = v[7] }
 ;(() => {
   let p = new URLSearchParams(location.search), v = getVals(), any = false
   v.forEach((_, i) => { if (p.has('t' + i)) { v[i] = p.get('t' + i); any = true } })
-  if (p.has('m')) mode = Math.max(0, Math.min(3, +p.get('m') || 0))
+  if (p.has('m')) mode = Math.max(0, Math.min(4, +p.get('m') || 0))
   if (p.has('d')) SPLIT = +p.get('d') || 0
   if (p.has('j')) JIT = +p.get('j') || 0
   if (any) { setVals(v); layout(); tick() }
@@ -199,19 +200,21 @@ saveURL = () => {
   history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''))
 }
 panel = document.getElementById('panel')
-ml = document.createElement('label'); ml.textContent = 'modo (teclas 0-3): 1 desgarro · 2 vórtice · 3 borrar realidad'
+ml = document.createElement('label'); ml.textContent = 'modo (teclas 0-4): 1 desgarro · 2 vórtice · 3 borrar realidad · 4 cámara'
 mrow = document.createElement('div'); mrow.className = 'modes'
-modeBtns = [0, 1, 2, 3].map(k => {
+modeBtns = [0, 1, 2, 3, 4].map(k => {
   let b = document.createElement('button'); b.textContent = k === 0 ? 'ninguno' : k
   b.onclick = () => setMode(k); mrow.append(b); return b
 })
-setMode = k => { mode = k; modeBtns.forEach((b, i) => b.classList.toggle('on', i === k)); saveURL() }
+camOn = false
+initCamOnce = () => { if (camOn) return; camOn = true; try { s3.initCam() } catch (e) { camOn = false; console.warn(e) } }
+setMode = k => { mode = k; if (k === 4) initCamOnce(); modeBtns.forEach((b, i) => b.classList.toggle('on', i === k)); saveURL() }
 panel.append(ml, mrow)
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return
   if (e.key === 's' || e.key === 'S') { saveImg(); return }
   if (e.key === 'h' || e.key === 'H') { let u = document.getElementById('ui'); u.style.display = u.style.display === 'none' ? '' : 'none'; return }
-  if ('0123'.includes(e.key) && e.key.length === 1) setMode(+e.key)
+  if ('01234'.includes(e.key) && e.key.length === 1) setMode(+e.key)
 })
 inputs = LABELS.map((lb, i) => {
   let l = document.createElement('label'); l.textContent = lb
@@ -241,29 +244,32 @@ row.append(bCopy, bReset); panel.append(row)
 
 // ---- descargar imagen ----
 dl = document.createElement('div'); dl.className = 'sl'; dl.style.marginTop = '10px'
-selQ = document.createElement('select')
-selQ.style.cssText = 'flex:1;background:#000;color:#fff;border:1px solid #888;padding:4px;font:inherit'
-;[['1', 'normal'], ['2', 'alta (x2)'], ['3', 'máxima (x3)']].forEach(([v, t]) => selQ.append(new Option(t, v)))
-selQ.value = '2'
+MAXPX = 5000
+mkPx = v => { let n = document.createElement('input'); n.type = 'number'; n.min = 1; n.max = MAXPX; n.step = 1; n.value = v
+  n.style.cssText = 'width:70px;flex:1;background:#000;color:#fff;border:1px solid #888;padding:4px;font:inherit'
+  n.onchange = () => { n.value = Math.max(1, Math.min(MAXPX, Math.round(+n.value || v))) }; return n }
+inW = mkPx(5000); inH = mkPx(5000)
+sz = document.createElement('label'); sz.textContent = 'tamaño de exportación en px (ancho × alto, máx 5000)'
 bDl = document.createElement('button'); bDl.textContent = 'descargar PNG'
 saveImg = () => {
   if (bDl.disabled) return
-  let base = dpr, want = +selQ.value
-  let k = Math.min(want, 4096 / (Math.max(innerWidth, innerHeight) * base))  // tope 4096 px
-  if (k < 1) k = 1
+  let base = dpr
+  let w = Math.max(1, Math.min(MAXPX, Math.round(+inW.value) || MAXPX)), h = Math.max(1, Math.min(MAXPX, Math.round(+inH.value) || MAXPX))
+  inW.value = w; inH.value = h
   bDl.textContent = 'renderizando…'; bDl.disabled = true
-  dpr = base * k; layout(); setResolution(W, H); tick()
+  FW = w; FH = h; dpr = Math.min(w, h) / Math.min(innerWidth, innerHeight)
+  layout(); setResolution(W, H); tick()
   setTimeout(() => {
     canvas.toBlob(b => {
       let a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'cobarde.png'; a.click()
       setTimeout(() => URL.revokeObjectURL(a.href), 2000)
-      dpr = base; layout(); setResolution(W, H); tick()
+      FW = FH = 0; dpr = base; layout(); setResolution(W, H); tick()
       bDl.textContent = 'descargar PNG'; bDl.disabled = false
     }, 'image/png')
   }, 900)
 }
 bDl.onclick = saveImg
-dl.append(selQ, bDl); panel.append(dl)
+dl.append(inW, inH, bDl); panel.append(sz, dl)
 hint = document.createElement('label'); hint.textContent = 'teclas: h ocultar/mostrar este botón · s guardar PNG'
 panel.append(hint)
 setMode(mode)
@@ -288,6 +294,8 @@ osc(18, 0.1, 0).color(1.6, 0.1, 2)
     () => mode === 1 ? 0.04 + vel * 0.6 : 0)
   // 3 · borrar realidad
   .modulate(src(s2).modulate(noise(3, 0.4), 0.1), () => mode === 3 ? 0.14 : 0)
+  // 4 · modulate con la cámara
+  .modulate(src(s3).scale(1, -1, 1).saturate(1.5), () => mode === 4 ? 0.25 + lvl() * 0.3 : 0)
   .out(o0)
 
 // ---- o1: franjas finas azul/magenta que giran con o0 ----
