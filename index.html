@@ -273,7 +273,8 @@ setMode(mode)
 document.getElementById('tg').onclick = () => panel.classList.toggle('open')
 
 kx = () => 1
-tk = a => () => Math.random() < 0.07 ? JIT * a * (Math.random() - 0.5) : 0
+clean = () => FW > 0   // exportando: texto limpio, sin temblor ni desfase
+tk = a => () => !clean() && Math.random() < 0.07 ? JIT * a * (Math.random() - 0.5) : 0
 
 // ---- o0: rejilla de franjas que se come a o1 (y al texto) por diferencia ----
 osc(18, 0.1, 0).color(1.6, 0.1, 2)
@@ -291,7 +292,7 @@ osc(18, 0.1, 0).color(1.6, 0.1, 2)
   .out(o0)
 
 // ---- o1: franjas finas azul/magenta que giran con o0 ----
-osc(20, 0.2, 0).color(0.35, 0.15, 2)
+osc(20, 0.2, 0).color(1.1, 0.1, 1.5)
   .mult(osc(40, 0.02).color(1, 0.3, 1.4))
   .modulateRotate(o0, () => 0.2 + (mx() - 0.5) * 0.3)
   .rotate(0.2)
@@ -306,23 +307,23 @@ osc(20, 0.2, 0).color(0.35, 0.15, 2)
 
 // ---- post: paleta + tearing ----
 src(o0)
-  .color(0.8, 0.42, 1.1)
+  .color(1.35, 0.2, 1.05)
   .saturate(1.15)
   .contrast(1.25)
   .modulateScrollX(noise(2, 0.6).scale(1, 80, 1).thresh(0.75), () => Math.random() < 0.15 ? 0.12 : 0.02)
   .out(o2)
 
 // ---- split RGB + texto legible encima ----
-src(o2).color(1, 0, 0.15)
-  .add(src(o2).scrollX(() => (0.006 + (Math.random() < 0.08 ? 0.04 : 0)) * kx()).color(0, 0, 1))
+src(o2).color(1, 0, 0.45)
+  .add(src(o2).scrollX(() => (0.006 + (Math.random() < 0.08 ? 0.04 : 0)) * kx()).color(0.5, 0, 1))
   .add(src(o2).scrollX(() => -0.004 * kx()).color(0, 0.45, 0))
   .mult(src(s1).scrollX(tk(0.03)).invert().add(solid(0.1, 0.06, 0.18)))
-  .add(src(s0).scrollX(() => -0.005 * SPLIT + tk(0.05)()).color(1, 0.1, 0.75), 0.9)
-  .add(src(s0).scrollX(() => 0.005 * SPLIT + tk(0.05)()).color(0.1, 0.9, 1), 0.9)
+  .add(src(s0).scrollX(() => clean() ? 0 : -0.005 * SPLIT + tk(0.05)()).color(1, 0.1, 0.75), 0.9)
+  .add(src(s0).scrollX(() => clean() ? 0 : 0.005 * SPLIT + tk(0.05)()).color(0.1, 0.9, 1), 0.9)
   .add(src(s0).scrollX(tk(0.02)).color(0.6, 0.6, 0.6))
-  .modulateScrollX(noise(4, 0.7).scale(1, 120, 1).thresh(0.88), 0.04)
-  .pixelate(() => mode !== 1 && Math.random() < 0.04 + vel * 0.2 ? 48 : 4000,
-    () => mode !== 1 && Math.random() < 0.04 + vel * 0.2 ? 140 : 4000)
+  .modulateScrollX(noise(4, 0.7).scale(1, 120, 1).thresh(0.88), () => clean() ? 0 : 0.04)
+  .pixelate(() => !clean() && mode !== 1 && Math.random() < 0.04 + vel * 0.2 ? 48 : 4000,
+    () => !clean() && mode !== 1 && Math.random() < 0.04 + vel * 0.2 ? 140 : 4000)
   // 3 · borrar realidad (huella del puntero)
   .add(src(s2).modulate(noise(4, 0.6), 0.05).color(0.1, 1, 0.85)
     .mult(osc(40, 0.2).rotate(Math.PI / 2).add(solid(0.3, 0.3, 0.3))),
