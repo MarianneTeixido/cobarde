@@ -79,7 +79,7 @@ decay = () => { vel *= 0.93; window._raf = requestAnimationFrame(decay) }
 decay()
 DEFQ = 'do you still love me?'
 DEF = [
-  '404: cobarde',                           // 0 chico
+  '404 : cobarde',                          // 0 chico
   'LOVE',                                   // 1 grande
   'not',                                    // 2 chico
   'FOUND',                                  // 3 grande (tachado)
@@ -174,7 +174,7 @@ s1.init({ src: HL, dynamic: true })
 s2.init({ src: P, dynamic: true })
 
 // ---- interfaz de texto ----
-LABELS = ['renglón 1 (chico)', 'renglón 2 (grande)', 'renglón 3 (chico)', 'renglón 4 (grande, tachado)',
+LABELS = ['encabezado chico', 'renglón 1 (grande)', 'renglón 2 (chico)', 'renglón 3 (grande, tachado)',
   'texto vertical', 'pie 1', 'pie 2', 'pregunta final (se escribe sola)']
 getVals = () => BASE.concat(Q)
 setVals = v => { BASE = v.slice(0, 7); Q = v[7] }
