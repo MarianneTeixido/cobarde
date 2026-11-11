@@ -125,7 +125,7 @@ layout()
 
 G = '█▓▒░#@%&/\\<>_|'
 amt = 0; t0 = performance.now()
-cor = s => s.split('').map(ch => ch !== ' ' && Math.random() < amt
+cor = s => FW ? s : s.split('').map(ch => ch !== ' ' && Math.random() < amt
   ? G[Math.floor(Math.random() * G.length)] : ch).join('')
 
 draw = (cnv, halo, S) => {
@@ -161,7 +161,7 @@ tick = () => {
   amt = Math.max(amt, Math.min(0.55, vel * 0.9))
   let el = (performance.now() - t0) / 1000
   let q = Q
-  let n = Math.min(q.length, Math.floor((el % 9) * 7))
+  let n = FW ? q.length : Math.min(q.length, Math.floor((el % 9) * 7))
   let S = BASE.concat('> ' + q.slice(0, n) + (Math.floor(el * 2) % 2 ? '_' : ' ')).map(cor)
   draw(T, false, S); draw(HL, true, S)
   pc.fillStyle = 'rgba(0,0,0,0.07)'; pc.fillRect(0, 0, P.width, P.height)
