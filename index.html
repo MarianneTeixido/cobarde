@@ -89,7 +89,7 @@ DEF = [
 ]
 BASE = DEF.slice()
 Q = DEFQ
-SPLIT = 1; JIT = 1   // desfase RGB del texto y temblor
+SPLIT = 1; JIT = 1; PINK = 1   // desfase RGB del texto y temblor
 big = s => '500 ' + s + 'px sans-serif'
 mono = s => s + 'px monospace'
 
@@ -185,6 +185,7 @@ setVals = v => { BASE = v.slice(0, 7); Q = v[7] }
   if (p.has('m')) mode = Math.max(0, Math.min(4, +p.get('m') || 0))
   if (p.has('d')) SPLIT = +p.get('d') || 0
   if (p.has('j')) JIT = +p.get('j') || 0
+  if (p.has('c')) PINK = Math.max(0, Math.min(1, +p.get('c') || 0))
   if (any) { setVals(v); layout(); tick() }
 })()
 saveURL = () => {
@@ -193,6 +194,7 @@ saveURL = () => {
   if (mode !== 1) p.set('m', mode)
   if (SPLIT !== 1) p.set('d', SPLIT)
   if (JIT !== 1) p.set('j', JIT)
+  if (PINK !== 1) p.set('c', PINK)
   let qs = p.toString()
   history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''))
 }
@@ -232,11 +234,12 @@ mkSlider = (lb, get, set, max) => {
 }
 syncD = mkSlider('desfase del texto (0 = nada, 1 = original)', () => SPLIT, v => SPLIT = v, 6)
 syncJ = mkSlider('temblor del texto (0 = quieto, 1 = original)', () => JIT, v => JIT = v, 6)
+syncC = mkSlider('color (0 = azul, 1 = rosa)', () => PINK, v => PINK = v, 1)
 row = document.createElement('div'); row.className = 'row'
 bCopy = document.createElement('button'); bCopy.textContent = 'copiar link'
 bCopy.onclick = () => { navigator.clipboard.writeText(location.href); bCopy.textContent = '¡copiado!'; setTimeout(() => bCopy.textContent = 'copiar link', 1200) }
 bReset = document.createElement('button'); bReset.textContent = 'restaurar'
-bReset.onclick = () => { setVals(DEF.concat(DEFQ)); inputs.forEach((x, i) => x.value = getVals()[i]); SPLIT = JIT = 1; setMode(1); syncD(1); syncJ(1); layout(); tick(); saveURL() }
+bReset.onclick = () => { setVals(DEF.concat(DEFQ)); inputs.forEach((x, i) => x.value = getVals()[i]); SPLIT = JIT = PINK = 1; setMode(1); syncD(1); syncJ(1); syncC(1); layout(); tick(); saveURL() }
 row.append(bCopy, bReset); panel.append(row)
 
 // ---- descargar imagen ----
@@ -273,6 +276,7 @@ setMode(mode)
 document.getElementById('tg').onclick = () => panel.classList.toggle('open')
 
 kx = () => 1
+lp = (a, b) => () => a + (b - a) * PINK
 clean = () => FW > 0   // exportando: texto limpio, sin temblor ni desfase
 tk = a => () => !clean() && Math.random() < 0.07 ? JIT * a * (Math.random() - 0.5) : 0
 
@@ -292,7 +296,7 @@ osc(18, 0.1, 0).color(1.6, 0.1, 2)
   .out(o0)
 
 // ---- o1: franjas finas azul/magenta que giran con o0 ----
-osc(20, 0.2, 0).color(1.1, 0.1, 1.5)
+osc(20, 0.2, 0).color(lp(0.35, 1.1), lp(0.15, 0.1), lp(2, 1.5))
   .mult(osc(40, 0.02).color(1, 0.3, 1.4))
   .modulateRotate(o0, () => 0.2 + (mx() - 0.5) * 0.3)
   .rotate(0.2)
@@ -307,15 +311,15 @@ osc(20, 0.2, 0).color(1.1, 0.1, 1.5)
 
 // ---- post: paleta + tearing ----
 src(o0)
-  .color(1.35, 0.2, 1.05)
+  .color(lp(0.8, 1.35), lp(0.42, 0.2), lp(1.1, 1.05))
   .saturate(1.15)
   .contrast(1.25)
   .modulateScrollX(noise(2, 0.6).scale(1, 80, 1).thresh(0.75), () => Math.random() < 0.15 ? 0.12 : 0.02)
   .out(o2)
 
 // ---- split RGB + texto legible encima ----
-src(o2).color(1, 0, 0.45)
-  .add(src(o2).scrollX(() => (0.006 + (Math.random() < 0.08 ? 0.04 : 0)) * kx()).color(0.5, 0, 1))
+src(o2).color(1, 0, lp(0.15, 0.45))
+  .add(src(o2).scrollX(() => (0.006 + (Math.random() < 0.08 ? 0.04 : 0)) * kx()).color(lp(0, 0.5), 0, 1))
   .add(src(o2).scrollX(() => -0.004 * kx()).color(0, 0.45, 0))
   .mult(src(s1).scrollX(tk(0.03)).invert().add(solid(0.1, 0.06, 0.18)))
   .add(src(s0).scrollX(() => clean() ? 0 : -0.005 * SPLIT + tk(0.05)()).color(1, 0.1, 0.75), 0.9)
